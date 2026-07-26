@@ -19,8 +19,13 @@ const segment = (id, { corner = "main", playCount = 1, lastPlayedAt = "2026-01-0
 
 const WORDS = [{ word: "a" }, { word: "b" }, { word: "c" }];
 
-test("an empty library has nothing to broadcast", () => {
-  assert.equal(nextSlot({ position: 0, sources: [] }), null);
+test("an empty library still puts the hosts on air", () => {
+  // Never null: a silent station is worse than one asking for material.
+  for (const position of [0, 3, 5, 9]) {
+    const slot = nextSlot({ position, sources: [] });
+    assert.equal(slot.corner, "welcome");
+    assert.equal(slot.source, null);
+  }
 });
 
 test("the clock walks its slots in order and wraps", () => {

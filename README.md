@@ -75,11 +75,10 @@ your station, not a service.
 
 ```bash
 npm install
-cp .env.example .dev.vars     # set ACCESS_PASSWORD + SESSION_SECRET
-npm run dev                   # http://localhost:8787
+npm run dev     # http://localhost:8787
 ```
 
-`SESSION_SECRET` can be anything long and random — `openssl rand -hex 32`.
+Nothing to configure: open it and choose a password, same as in production.
 
 Leave `ANTHROPIC_API_KEY` empty and the station still boots, playing canned mock
 scripts so you can see the format working before spending anything.

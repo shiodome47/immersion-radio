@@ -138,13 +138,6 @@ async function handleApi(request, env, url) {
       words: recentWords(segments, 6),
     });
 
-    if (!slot) {
-      return json(
-        { error: "The station has nothing to broadcast yet — send the show something first." },
-        { status: 409 }
-      );
-    }
-
     // Reruns cost nothing: no generation, and the listener meets the same
     // vocabulary again a few slots later.
     if (slot.corner === "rerun" && slot.rerunOf) {
@@ -159,6 +152,12 @@ async function handleApi(request, env, url) {
       words: recentWords(segments),
       env,
     });
+
+    // The welcome is filler until there is a library; banking it would pad the
+    // rotation with the hosts apologising for having nothing to play.
+    if (slot.corner === "welcome") {
+      return json({ ...written, label: slot.label, rerun: false });
+    }
 
     const saved = await station.addSegment(written);
     await station.markSegmentPlayed(saved.id);

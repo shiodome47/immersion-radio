@@ -36,6 +36,8 @@ const LEVEL_GUIDE = {
 };
 
 const CORNER_BRIEF = {
+  welcome: `The very first thing this listener ever hears (8-12 turns). The hosts introduce Immerse FM warmly, explain — in the flow of conversation, never as instructions — that the show is built from whatever the listener sends in, and coax them into sending the first thing. Speculate playfully about what it might be. Keep it light; they have not given you anything yet, so this is charm, not content.`,
+
   station_id: `A very short station ident (4-6 turns). The hosts welcome the listener to Immerse FM, riff briefly on nothing in particular, and tease what is coming up. Light and fast.`,
 
   main: `The main segment (14-20 turns). The hosts dig into the listener's material together: what it is actually saying, what surprised them, where they disagree. This is a real conversation, not a summary read aloud — they interrupt, build on each other, and go on small tangents before coming back.`,
@@ -140,6 +142,16 @@ function normalize(data, { corner, source, level }) {
 function mockSegment({ corner, source, level }) {
   const topic = source?.title || "your library";
   const canned = {
+    welcome: [
+      { speaker: "A", text: "You're listening to Immerse FM. I'm Maya." },
+      { speaker: "B", text: "And I'm Theo. And right now — full disclosure — we have absolutely nothing to talk about." },
+      { speaker: "A", text: "(laughs) That's not true. We have each other." },
+      { speaker: "B", text: "That's worse, somehow." },
+      { speaker: "A", text: "Here's the thing. This whole station runs on what you send us." },
+      { speaker: "B", text: "A video you liked. A meeting you sat through. An article. Anything, really." },
+      { speaker: "A", text: "Paste it in over there, and we'll take it from here." },
+      { speaker: "B", text: "Please. I'm begging you. (laughs) We'll be right here." },
+    ],
     station_id: [
       { speaker: "A", text: "You're listening to Immerse FM. I'm Maya." },
       { speaker: "B", text: "And I'm Theo. We've got a good one lined up." },
@@ -166,9 +178,15 @@ function mockSegment({ corner, source, level }) {
     { speaker: "B", text: "(laughs) I thought you'd never ask." },
     { speaker: "A", text: "We'll pick this up after the break. Don't go anywhere." },
   ];
+  const titles = {
+    welcome: "Welcome to Immerse FM",
+    quiz: "Quiz corner",
+    mail: "Listener mail",
+  };
+
   return {
     corner,
-    title: `Now playing: ${topic}`,
+    title: titles[corner] || `Now playing: ${topic}`,
     turns: canned[corner] || fallback,
     newWords: [
       { word: "circle back", meaning: "return to a topic later" },

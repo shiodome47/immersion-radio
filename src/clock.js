@@ -54,10 +54,15 @@ const pickUnaired = (sources) => sources.find((s) => s.airedCount === 0) || null
  * @param {Array} opts.sources
  * @param {Array} opts.segments
  * @param {Array} opts.words           vocabulary introduced so far
- * @returns {{corner, label, source, rerunOf}|null} null when there is nothing to broadcast
+ * @returns {{corner, label, source, rerunOf}} always a slot — see the welcome case
  */
 export function nextSlot({ position = 0, lastSourceId = null, sources = [], segments = [], words = [] }) {
-  if (!sources.length) return null;
+  // A station with nothing in the library is still on the air. Going silent and
+  // showing an error is the one thing radio never does, and the hosts asking for
+  // material is a better prompt than a toast telling you the form is empty.
+  if (!sources.length) {
+    return { corner: "welcome", label: "Station ID", source: null, rerunOf: null };
+  }
 
   let slot = CLOCK[position % CLOCK.length];
 
