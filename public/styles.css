@@ -13,6 +13,13 @@
 
 * { box-sizing: border-box; }
 
+/* The hidden attribute is only a UA-stylesheet `display: none`, so any author
+   rule that sets display beats it. `.lock` sets `display: grid`, which meant the
+   lock screen stayed on screen no matter what the code did with `.hidden` — the
+   station was wide open and unreachable behind a panel that could not be
+   dismissed. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background:
