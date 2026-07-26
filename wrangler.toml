@@ -40,7 +40,7 @@ IMMERSE_MODEL = "claude-sonnet-5"
 
 # Bumped by hand so a running station can report which build it is, which
 # otherwise takes a screenshot and a guess to establish.
-BUILD_MARKER = "diag-1"
+BUILD_MARKER = "lax-1"
 
 # Secrets are NOT set here — they'd end up in git. Set them with:
 #   npx wrangler secret put ANTHROPIC_API_KEY

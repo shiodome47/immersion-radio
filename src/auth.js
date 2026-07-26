@@ -48,14 +48,22 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+// Lax rather than Strict. Strict withholds the cookie on any cross-site
+// navigation, so arriving from a link — the Cloudflare dashboard's own "Visit"
+// button, a bookmark shared to yourself, a chat message — lands you on the lock
+// screen while the session is perfectly valid. Lax still withholds it from
+// cross-site POSTs, which is the CSRF vector that matters here: every route
+// that changes anything is POST, PUT or DELETE.
+const COOKIE_ATTRS = `HttpOnly; Secure; SameSite=Lax; Path=/`;
+
 export async function issueCookie(secret) {
   const expires = Date.now() + TTL_SECONDS * 1000;
   const sig = await hmac(secret, String(expires));
-  return `${COOKIE}=${expires}.${sig}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${TTL_SECONDS}`;
+  return `${COOKIE}=${expires}.${sig}; ${COOKIE_ATTRS}; Max-Age=${TTL_SECONDS}`;
 }
 
 export function clearCookie() {
-  return `${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
+  return `${COOKIE}=; ${COOKIE_ATTRS}; Max-Age=0`;
 }
 
 function readCookie(request) {
