@@ -25,6 +25,11 @@ async function handleApi(request, env, url) {
   // --- unauthenticated surface: just enough to render the lock screen ---
 
   const station = getStation(env);
+
+  // A forgotten password would otherwise need dashboard surgery. This lets the
+  // reset ride along with a deploy instead.
+  if (env.RESET_STATION) await station.consumeReset(env.RESET_STATION);
+
   const [secret, storedHash] = await Promise.all([
     station.getSessionSecret(),
     station.getPasswordHash(),

@@ -52,14 +52,19 @@ serves nothing private: a station mid-setup fails closed, not open.
 secret; doing so disables first-run setup and wins over any password already
 claimed.
 
-**If you forget the password**, there is no reset flow — setup refuses to
-overwrite, which is what stops a stranger reclaiming a station they found. Two
-ways out, both requiring the dashboard access only the owner has:
+**If you forget the password**, setup will not simply let you claim it again —
+that is what stops a stranger reclaiming a station they stumbled onto. Recovery
+rides along with a deploy instead, which only the owner can do: change
+`RESET_STATION` in `wrangler.toml` to any new string and push.
 
-- Set `ACCESS_PASSWORD` as a secret. It overrides the stored one immediately.
-- Or delete the `Station` Durable Object (left menu → Durable Objects). That
-  wipes the password *and the library with it*, so prefer the first once you
-  have material worth keeping.
+The token is consumed the first time a deploy carrying it serves a request, so
+it clears the password exactly once and then does nothing on every later deploy.
+That is why it is safe to leave in the file. The library survives — only the
+password is cleared. Reload after the build and you are asked to choose a new
+one.
+
+`ACCESS_PASSWORD` set as a secret also overrides the stored password, if you
+would rather manage it that way.
 
 It is single-tenant on purpose: one password, one library, no accounts. This is
 your station, not a service.

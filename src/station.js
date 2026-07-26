@@ -48,6 +48,18 @@ export class Station extends DurableObject {
     return true;
   }
 
+  // Recovery for a locked-out owner. Consumes a token the deploy carries, so it
+  // fires exactly once per distinct value: the flag can sit in the repo
+  // permanently without leaving the station re-claimable by whoever loads it
+  // next. Bump the token to reset again.
+  async consumeReset(token) {
+    if (!token) return false;
+    if ((await this.ctx.storage.get("resetToken")) === token) return false;
+    await this.ctx.storage.put("resetToken", token);
+    await this.ctx.storage.delete("passwordHash");
+    return true;
+  }
+
   async getLevel() {
     return this.#read("level", "B1");
   }
