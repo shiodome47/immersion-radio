@@ -23,6 +23,12 @@ class_name = "Station"
 tag = "v1"
 new_sqlite_classes = ["Station"]
 
+# Runtime logs in the dashboard. Salvaged from the config Cloudflare's connect
+# flow generated: this project is driven from a browser, so when the Worker
+# throws in production there is otherwise no way to see why.
+[observability]
+enabled = true
+
 [vars]
 IMMERSE_MODEL = "claude-sonnet-5"
 
