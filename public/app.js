@@ -289,19 +289,38 @@ async function loadSources() {
 
 let needsSetup = false;
 
-$("lockForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const res = await fetch(needsSetup ? "/api/setup" : "/api/login", {
+async function submitPassword(path, password) {
+  const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: $("password").value }),
+    body: JSON.stringify({ password }),
   });
-  if (!res.ok) {
-    $("lockHint").textContent = (await res.json().catch(() => ({}))).error || "Could not unlock.";
+  return { ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+$("lockForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const password = $("password").value;
+  $("lockHint").textContent = "";
+
+  let result = await submitPassword(needsSetup ? "/api/setup" : "/api/login", password);
+
+  // The page decided which of the two it was when it loaded. If the station was
+  // configured from the dashboard in the meantime, that decision is stale — so
+  // take the server's correction and retry rather than making someone reload to
+  // escape a dead end.
+  if (!result.ok && result.status === 409) {
+    needsSetup = !needsSetup;
+    result = await submitPassword(needsSetup ? "/api/setup" : "/api/login", password);
+  }
+
+  if (!result.ok) {
+    $("lockHint").textContent =
+      result.body.error || `Could not unlock (HTTP ${result.status}).`;
     return;
   }
+
   $("password").value = "";
-  $("lockHint").textContent = "";
   needsSetup = false;
   openStation();
 });
