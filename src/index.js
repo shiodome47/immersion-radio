@@ -41,6 +41,23 @@ async function handleApi(request, env, url) {
     return json({ needsSetup: !locked, authed });
   }
 
+  // Deliberately unauthenticated, and deliberately boolean-only: enough to tell
+  // a deployed station apart from the one on your laptop without disclosing
+  // anything a stranger could use. Diagnosing production by screenshot is slow
+  // and mostly guesswork.
+  if (path === "/api/diag" && method === "GET") {
+    return json({
+      build: env.BUILD_MARKER || "unknown",
+      hasStoredPassword: Boolean(storedHash),
+      hasAccessPasswordVar: Boolean(env.ACCESS_PASSWORD),
+      resetFlagPresent: Boolean(env.RESET_STATION),
+      resetAlreadyConsumed: await station.resetConsumed(),
+      cookiePresent: Boolean(request.headers.get("Cookie")),
+      authed,
+      https: url.protocol === "https:",
+    });
+  }
+
   // First run: whoever opens the freshly deployed station chooses its password.
   // Only reachable while no password exists, and claimPassword refuses to
   // overwrite, so this closes permanently the moment it is used once.

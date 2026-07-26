@@ -32,10 +32,15 @@ enabled = true
 [vars]
 IMMERSE_MODEL = "claude-sonnet-5"
 
-# Clears a forgotten password on deploy. Consumed once per distinct value, so
-# leaving it here does nothing on later deploys — change the string to reset
-# again. Safe to commit: it only does anything to the station you deploy it to.
-RESET_STATION = "2026-07-26-locked-out"
+# Set RESET_STATION here to clear a forgotten password on the next deploy; it is
+# consumed once per distinct value. Left unset deliberately — a reset flag that
+# lingers after it has done its job is a standing risk to the password it is
+# meant to protect, and one worth ruling out when something looks like state
+# being wiped.
+
+# Bumped by hand so a running station can report which build it is, which
+# otherwise takes a screenshot and a guess to establish.
+BUILD_MARKER = "diag-1"
 
 # Secrets are NOT set here — they'd end up in git. Set them with:
 #   npx wrangler secret put ANTHROPIC_API_KEY

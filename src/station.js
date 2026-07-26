@@ -60,6 +60,10 @@ export class Station extends DurableObject {
     return true;
   }
 
+  async resetConsumed() {
+    return Boolean(await this.ctx.storage.get("resetToken"));
+  }
+
   async getLevel() {
     return this.#read("level", "B1");
   }
