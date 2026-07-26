@@ -74,14 +74,21 @@ npm test    # the format clock's programming logic
 
 ## Deploy it
 
-**1. Create the KV namespace** and paste both ids into `wrangler.toml`:
+Deployment runs through **Cloudflare's Git integration** (Workers & Pages →
+your project → Settings → Build). It runs `npx wrangler deploy` on every push.
+
+Before the first deploy succeeds you must do two things it cannot do for you.
+
+**1. Create the KV namespace** and paste the id into `wrangler.toml`. The id
+belongs to your Cloudflare account, so the committed file ships a placeholder —
+**deploys fail until you replace it**:
 
 ```bash
 npx wrangler kv namespace create STATION
-npx wrangler kv namespace create STATION --preview
 ```
 
-**2. Set the secrets** (never put these in `wrangler.toml` — it's committed):
+**2. Set the secrets.** These live on Cloudflare, not in the repo, and you set
+them once rather than per deploy:
 
 ```bash
 npx wrangler secret put ACCESS_PASSWORD
@@ -89,24 +96,10 @@ npx wrangler secret put SESSION_SECRET
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
 
-**3. Ship it:**
+Then commit the real KV id and push. To deploy by hand instead: `npm run deploy`.
 
-```bash
-npm run deploy
-```
-
-### Or let GitHub do it
-
-`.github/workflows/deploy.yml` deploys on every push to `main`. Add two
-repository secrets under *Settings → Secrets and variables → Actions*:
-
-| Secret | Where to get it |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → My Profile → API Tokens → *Edit Cloudflare Workers* |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages (right sidebar) |
-
-Worker secrets set with `wrangler secret put` live on Cloudflare and are
-independent of these — you set them once, not per deploy.
+`.github/workflows/ci.yml` runs the tests on every push. It does not deploy —
+that would double up with Cloudflare's integration.
 
 ---
 
