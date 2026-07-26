@@ -1,0 +1,26 @@
+name = "immerse-fm"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Static assets (the receiver UI). Requests that match a file here are served
+# directly; everything else falls through to the Worker, which owns /api/*.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# The station's memory: sources, the segment library, and your level.
+# Create it once with:
+#   npx wrangler kv namespace create STATION
+# then paste the printed id below (and the preview_id for `wrangler dev`).
+[[kv_namespaces]]
+binding = "STATION"
+id = "PUT_YOUR_KV_NAMESPACE_ID_HERE"
+preview_id = "PUT_YOUR_PREVIEW_KV_NAMESPACE_ID_HERE"
+
+[vars]
+IMMERSE_MODEL = "claude-sonnet-5"
+
+# Secrets are NOT set here — they'd end up in git. Set them with:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put ACCESS_PASSWORD
+#   npx wrangler secret put SESSION_SECRET

@@ -285,13 +285,58 @@ async function loadSources() {
   }
 }
 
-async function boot() {
+/* --------------------------------------------------------------------- lock */
+
+$("lockForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: $("password").value }),
+  });
+  if (!res.ok) {
+    $("lockHint").textContent = (await res.json().catch(() => ({}))).error || "Could not unlock.";
+    return;
+  }
+  $("password").value = "";
+  $("lockHint").textContent = "";
+  openStation();
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+  stop();
+  await fetch("/api/logout", { method: "POST" });
+  $("shell").hidden = true;
+  $("lock").hidden = false;
+});
+
+async function openStation() {
+  $("lock").hidden = true;
+  $("shell").hidden = false;
   const station = await (await fetch("/api/station")).json();
   $("level").value = station.level;
   $("modeNote").textContent = station.hasKey
     ? `Scripts written by ${station.model} · spoken by your browser`
     : `No ANTHROPIC_API_KEY set — playing canned mock scripts.`;
   loadSources();
+}
+
+async function boot() {
+  const session = await (await fetch("/api/session")).json();
+
+  if (!session.configured) {
+    // Refusing to open beats silently serving a public station: this app holds
+    // whatever you sent it, meeting transcripts included.
+    $("lock").hidden = false;
+    $("lockHint").textContent =
+      "Not configured. Set ACCESS_PASSWORD and SESSION_SECRET, then reload.";
+    $("password").disabled = true;
+    $("lockForm").querySelector("button").disabled = true;
+    return;
+  }
+
+  if (session.authed) return openStation();
+  $("lock").hidden = false;
 }
 
 boot();

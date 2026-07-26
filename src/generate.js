@@ -1,12 +1,15 @@
-// Writes the show. Two hosts talking to each other is not just a nicer vibe than
-// a monologue — it is the mechanism that makes i+1 work. When one host rephrases
-// or pushes back on the other, the same idea passes the listener twice in
-// different words, so hard vocabulary lands in context without anyone stopping
-// to define it like a textbook.
-import Anthropic from "@anthropic-ai/sdk";
-import { store } from "./store.js";
+// The writers' room.
+//
+// Two hosts talking to each other is not just a nicer vibe than a monologue —
+// it is the mechanism that makes i+1 work. A single narrator that wants to
+// teach a hard word has to stop and define it, which turns radio back into a
+// textbook. When one host rephrases or pushes back on the other, the same idea
+// reaches the listener twice in different words and nobody breaks character.
+//
+// Calls the Anthropic API over plain fetch rather than the SDK, so this runs
+// unchanged on Workers and in Node.
 
-const MODEL = process.env.IMMERSE_MODEL || "claude-sonnet-5";
+const API = "https://api.anthropic.com/v1/messages";
 
 export const HOSTS = {
   A: {
@@ -32,11 +35,6 @@ const LEVEL_GUIDE = {
   C1: "Advanced. Sophisticated natural English. Reach toward C2: precise low-frequency vocabulary, subtle phrasing.",
 };
 
-const hasKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
-
-let client = null;
-const getClient = () => (client ??= new Anthropic());
-
 const CORNER_BRIEF = {
   station_id: `A very short station ident (4-6 turns). The hosts welcome the listener to Immerse FM, riff briefly on nothing in particular, and tease what is coming up. Light and fast.`,
 
@@ -44,10 +42,10 @@ const CORNER_BRIEF = {
 
   quiz: `The quiz corner (10-14 turns). The hosts quiz EACH OTHER on words and phrases that came up on the show earlier — never the listener directly, so nobody has to press a button. One asks, the other guesses, sometimes wrongly and funnily, then they land on the real meaning and use it in a fresh example sentence. The listener plays along in their head.`,
 
-  mail: `The listener mail corner (10-14 turns). Treat the newly added material as a letter sent in to the show. The hosts read out who sent it and what it is, react to it honestly (including if it is dry or strange), and pull one interesting thread out of it. Warm and a bit playful — this is the listener's own life on the radio.`,
+  mail: `The listener mail corner (10-14 turns). Treat the newly added material as a letter sent in to the show. The hosts read out what it is, react to it honestly (including if it is dry or strange), and pull one interesting thread out of it. Warm and a bit playful — this is the listener's own life on the radio.`,
 };
 
-function buildPrompt({ corner, source, level, recentWords, stationName = "Immerse FM" }) {
+function buildPrompt({ corner, source, level, words }) {
   const guide = LEVEL_GUIDE[level] || LEVEL_GUIDE.B1;
 
   const materialBlock = source
@@ -62,13 +60,13 @@ ${
 }`
     : "";
 
-  const wordsBlock = recentWords.length
+  const wordsBlock = words.length
     ? `# Vocabulary already introduced on the show
-${recentWords.map((w) => `- ${w.word} — ${w.meaning}`).join("\n")}
+${words.map((w) => `- ${w.word} — ${w.meaning}`).join("\n")}
 Recycle some of these naturally. Repetition across segments is how they stick.`
     : "";
 
-  return `You are the writers' room for "${stationName}", a personalized English immersion radio station made for one language learner.
+  return `You are the writers' room for "Immerse FM", a personalized English immersion radio station made for one language learner.
 
 # The two hosts
 ${HOSTS.A.name} (speaker A): ${HOSTS.A.persona}
@@ -89,7 +87,7 @@ ${CORNER_BRIEF[corner] || CORNER_BRIEF.main}
 # How to write it
 - Real spoken English, not written English. Contractions, false starts, "I mean", "right?", "hang on".
 - Short turns. Most should be one or two sentences. Let them cut each other off.
-- Use nonverbal cues inline in parentheses where they genuinely happen: (laughs), (sighs), (pauses), (laughing). Do not overdo it — a couple per segment.
+- Use nonverbal cues inline in parentheses where they genuinely happen: (laughs), (sighs), (pauses). Do not overdo it — a couple per segment.
 - When a hard word appears, do not define it. Have the other host react to it, rephrase it, or ask about it. The meaning should be recoverable from the exchange alone.
 - Introduce 2-4 slightly-above-level words or phrases (the "+1"). List them in newWords with plain glosses.
 - No headings, no narration, no stage directions beyond the parenthetical cues.
@@ -109,11 +107,7 @@ Return ONLY valid JSON, no markdown fences, shaped exactly like:
 }
 
 function extractJson(text) {
-  const trimmed = text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
+  const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("no JSON object in model output");
@@ -123,10 +117,7 @@ function extractJson(text) {
 function normalize(data, { corner, source, level }) {
   const turns = (Array.isArray(data.turns) ? data.turns : [])
     .filter((t) => t && typeof t.text === "string" && t.text.trim())
-    .map((t) => ({
-      speaker: t.speaker === "B" ? "B" : "A",
-      text: t.text.trim(),
-    }));
+    .map((t) => ({ speaker: t.speaker === "B" ? "B" : "A", text: t.text.trim() }));
 
   if (!turns.length) throw new Error("model returned no usable turns");
 
@@ -145,10 +136,10 @@ function normalize(data, { corner, source, level }) {
   };
 }
 
-// Offline fallback so the station is demonstrable without an API key.
+// Offline fallback so the station is demonstrable before any key is set.
 function mockSegment({ corner, source, level }) {
   const topic = source?.title || "your library";
-  const scripts = {
+  const canned = {
     station_id: [
       { speaker: "A", text: "You're listening to Immerse FM. I'm Maya." },
       { speaker: "B", text: "And I'm Theo. We've got a good one lined up." },
@@ -178,7 +169,7 @@ function mockSegment({ corner, source, level }) {
   return {
     corner,
     title: `Now playing: ${topic}`,
-    turns: scripts[corner] || fallback,
+    turns: canned[corner] || fallback,
     newWords: [
       { word: "circle back", meaning: "return to a topic later" },
       { word: "stick around", meaning: "stay and keep listening" },
@@ -189,26 +180,32 @@ function mockSegment({ corner, source, level }) {
   };
 }
 
-export async function writeSegment({ corner, source, level }) {
-  if (!hasKey()) return mockSegment({ corner, source, level });
+export async function writeSegment({ corner, source, level, words = [], env }) {
+  if (!env?.ANTHROPIC_API_KEY) return mockSegment({ corner, source, level });
 
-  const message = await getClient().messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: buildPrompt({ corner, source, level, recentWords: store.recentWords() }),
-      },
-    ],
+  const res = await fetch(API, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: env.IMMERSE_MODEL || "claude-sonnet-5",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: buildPrompt({ corner, source, level, words }) }],
+    }),
   });
 
-  const text = message.content
+  if (!res.ok) {
+    throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const body = await res.json();
+  const text = (body.content || [])
     .filter((b) => b.type === "text")
     .map((b) => b.text)
     .join("\n");
 
   return normalize(extractJson(text), { corner, source, level });
 }
-
-export const generationInfo = () => ({ hasKey: hasKey(), model: MODEL, hosts: HOSTS });

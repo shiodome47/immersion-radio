@@ -7,6 +7,8 @@ meeting recording, a podcast, an article. Two AI hosts then talk about it to
 each other, pitched just above your current level, and keep talking. You leave
 it on.
 
+Runs on Cloudflare Workers.
+
 ---
 
 ## Why two hosts
@@ -28,34 +30,83 @@ Real stations run **heavy rotation** — the same tracks come back around. That
 isn't a flaw in radio, it's the format.
 
 Here it does triple duty: repetition is how vocabulary actually sticks, rerun
-slots cost nothing to generate, and the station sounds more like a station.
-The format clock has a dedicated rerun slot, so review is a corner of the show
+slots cost nothing to generate, and the station sounds more like a station. The
+format clock has a dedicated rerun slot, so review is a corner of the show
 rather than homework.
 
 ---
 
-## Run it
+## The station is locked by default
+
+This app stores whatever you send it. You are invited to send it your meeting
+recordings, so a public URL with no lock on it would publish your work to
+anyone who guesses the hostname — and let strangers spend your Anthropic
+credits.
+
+So there is a password gate, and **the Worker refuses to serve anything private
+until it is configured**. A missing password fails closed rather than silently
+meaning "open to everyone".
+
+It is single-tenant on purpose: one password, one library, no accounts. This is
+your station, not a service.
+
+---
+
+## Run it locally
 
 ```bash
 npm install
-cp .env.example .env     # add your ANTHROPIC_API_KEY
-npm start                # http://localhost:3000
+cp .env.example .dev.vars     # set ACCESS_PASSWORD + SESSION_SECRET
+npm run dev                   # http://localhost:8787
 ```
 
-Without an API key it still boots and plays canned mock scripts, so you can see
-the format working before spending anything.
+`SESSION_SECRET` can be anything long and random — `openssl rand -hex 32`.
+
+Leave `ANTHROPIC_API_KEY` empty and the station still boots, playing canned mock
+scripts so you can see the format working before spending anything.
 
 Speech uses your **browser's built-in voice** — no TTS bill while you tune the
 format. Works best in Chrome or Safari.
 
-## Use it
+```bash
+npm test    # the format clock's programming logic
+```
 
-1. Paste a transcript into **Send the show something**. For YouTube, transcribe
-   with [Notta](https://www.notta.ai/) (or anything similar) and paste the result.
-2. Set your level. The show deliberately aims one notch above it.
-3. Hit **Tune in**, and leave it running.
+## Deploy it
 
-The station won't stop on its own. That's the point.
+**1. Create the KV namespace** and paste both ids into `wrangler.toml`:
+
+```bash
+npx wrangler kv namespace create STATION
+npx wrangler kv namespace create STATION --preview
+```
+
+**2. Set the secrets** (never put these in `wrangler.toml` — it's committed):
+
+```bash
+npx wrangler secret put ACCESS_PASSWORD
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+**3. Ship it:**
+
+```bash
+npm run deploy
+```
+
+### Or let GitHub do it
+
+`.github/workflows/deploy.yml` deploys on every push to `main`. Add two
+repository secrets under *Settings → Secrets and variables → Actions*:
+
+| Secret | Where to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → My Profile → API Tokens → *Edit Cloudflare Workers* |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages (right sidebar) |
+
+Worker secrets set with `wrangler secret put` live on Cloudflare and are
+independent of these — you set them once, not per deploy.
 
 ---
 
@@ -76,7 +127,9 @@ endlessly fresh and reliably the same show. Immerse FM runs this one:
 
 Corners degrade gracefully: with an empty library there's nothing to rerun and
 no vocabulary to quiz, so those slots fall back to main segments until the
-station has enough history.
+station has enough history. `src/clock.js` is pure — it takes the data and
+returns a decision — so the whole programming policy is covered by `npm test`
+without KV, network, or a running Worker.
 
 The listener-mail corner is not decoration. Material you submit *is* mail to the
 show, so registering a source is an event inside the fiction rather than an
@@ -90,7 +143,7 @@ The browser voice is fine for judging structure and pacing, but it can't laugh,
 and laughter is load-bearing here.
 
 Everything downstream of `speakTurn()` in `public/app.js` is deliberately
-swappable. Point it at a server route returning audio and nothing else changes.
+swappable. Point it at a Worker route returning audio and nothing else changes.
 
 Rough costs, at ~1,000 characters ≈ 1 minute of speech:
 
@@ -113,15 +166,14 @@ no reason to be stingy with the writing.
 ## Layout
 
 ```
-server/
-  index.js      Express app + API
-  clock.js      the format clock — decides what airs next
+src/
+  index.js      Worker entry + API router
+  auth.js       password gate, HMAC-signed session cookie
+  clock.js      the format clock — pure, fully tested
   generate.js   the writers' room — two-host scripts, level-calibrated
-  store.js      JSON-file persistence (sources, segment library, level)
-public/
-  index.html    the receiver
-  app.js        playback loop, voice assignment, transcript sync
-  styles.css
+  store.js      Workers KV persistence
+public/         the receiver: lock screen, playback loop, transcript sync
+test/           the clock's programming logic
 ```
 
 `(laughs)` and friends are split out of the spoken text and shown in the
@@ -130,10 +182,12 @@ silence. A real TTS backend should be passed them intact.
 
 ## Status
 
-MVP. Verified: the API, the clock's corner selection and fallbacks, rotation,
-and module loading. Not yet verified: in-browser playback and voice assignment,
-which need a real browser.
+MVP. Verified against a local Worker: the password gate (private routes 401
+without a cookie, wrong passwords rejected), the full broadcast flow, KV
+persistence, corner selection and its fallbacks, reruns, and static asset
+serving. Not verified: in-browser playback and voice assignment, which need a
+real browser.
 
-Not built yet: automatic YouTube fetching (paste is the intended path),
-comprehension tracking to infer your level from listening behavior, and audio
-TTS.
+Not built yet: audio TTS, automatic YouTube fetching (paste is the intended
+path), and comprehension tracking to infer your level from listening behaviour
+rather than asking you.

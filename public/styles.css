@@ -154,4 +154,28 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #4a5170
 .sources button:hover { color: var(--accent); border-color: var(--accent); }
 .empty { color: var(--dim); font-size: 13px; }
 
-.footer { margin-top: 26px; color: var(--dim); font-size: 12.5px; text-align: center; }
+.footer {
+  margin-top: 26px; color: var(--dim); font-size: 12.5px;
+  display: flex; justify-content: center; align-items: center; gap: 14px;
+}
+.linkish {
+  background: none; border: none; color: var(--dim);
+  padding: 0; font-size: 12.5px; text-decoration: underline;
+}
+.linkish:hover { color: var(--accent); }
+
+/* ---- lock screen ---- */
+.lock {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+}
+.lockcard {
+  width: min(360px, 100%);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 30px;
+  display: flex; flex-direction: column; gap: 12px; text-align: center;
+}
+.lockcard .onair { align-self: center; }
+.lockcard h1 { margin: 4px 0 0; font-size: 28px; letter-spacing: -0.02em; }
+.lockcard p { margin: 0; color: var(--dim); font-size: 13.5px; }
+.lockcard button { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+.lockcard .hint { min-height: 1.2em; }

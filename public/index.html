@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="shell">
+  <div class="lock" id="lock" hidden>
+    <form class="lockcard" id="lockForm">
+      <span class="onair">OFF AIR</span>
+      <h1>Immerse&nbsp;FM</h1>
+      <p>This station is private.</p>
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <button type="submit">Unlock</button>
+      <p class="hint" id="lockHint"></p>
+    </form>
+  </div>
+
+  <div class="shell" id="shell" hidden>
     <header class="masthead">
       <div class="dial">
         <span class="onair" id="onair">OFF AIR</span>
@@ -83,6 +94,7 @@
 
     <footer class="footer">
       <span id="modeNote"></span>
+      <button id="logoutBtn" class="linkish">Lock the station</button>
     </footer>
   </div>
 
