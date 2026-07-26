@@ -74,29 +74,24 @@ npm test    # the format clock's programming logic
 
 ## Deploy it
 
-Deployment runs through **Cloudflare's Git integration** (Workers & Pages →
-your project → Settings → Build). It runs `npx wrangler deploy` on every push.
+Deployment runs through **Cloudflare's Git integration** (Workers & Pages → your
+project → Settings → Build), which runs `wrangler deploy` on every push. There
+is no resource to provision first: the station's storage is a Durable Object,
+created automatically from the migration in `wrangler.toml`.
 
-Before the first deploy succeeds you must do two things it cannot do for you.
+The one thing left is the secrets, and they can be set entirely from the
+dashboard — **Settings → Variables and Secrets → Add**, type *Secret*:
 
-**1. Create the KV namespace** and paste the id into `wrangler.toml`. The id
-belongs to your Cloudflare account, so the committed file ships a placeholder —
-**deploys fail until you replace it**:
+| Secret | Value |
+|---|---|
+| `ACCESS_PASSWORD` | whatever you want to unlock the station with |
+| `SESSION_SECRET` | any long random string (a password generator is fine) |
+| `ANTHROPIC_API_KEY` | your key, or skip it to run on mock scripts |
 
-```bash
-npx wrangler kv namespace create STATION
-```
+Then redeploy. Nothing needs a terminal.
 
-**2. Set the secrets.** These live on Cloudflare, not in the repo, and you set
-them once rather than per deploy:
-
-```bash
-npx wrangler secret put ACCESS_PASSWORD
-npx wrangler secret put SESSION_SECRET
-npx wrangler secret put ANTHROPIC_API_KEY
-```
-
-Then commit the real KV id and push. To deploy by hand instead: `npm run deploy`.
+If you do have one: `npx wrangler secret put ACCESS_PASSWORD` and
+`npm run deploy` do the same job.
 
 `.github/workflows/ci.yml` runs the tests on every push. It does not deploy —
 that would double up with Cloudflare's integration.
@@ -164,7 +159,7 @@ src/
   auth.js       password gate, HMAC-signed session cookie
   clock.js      the format clock — pure, fully tested
   generate.js   the writers' room — two-host scripts, level-calibrated
-  store.js      Workers KV persistence
+  station.js    the Durable Object holding sources, segments, and level
 public/         the receiver: lock screen, playback loop, transcript sync
 test/           the clock's programming logic
 ```
@@ -176,9 +171,9 @@ silence. A real TTS backend should be passed them intact.
 ## Status
 
 MVP. Verified against a local Worker: the password gate (private routes 401
-without a cookie, wrong passwords rejected), the full broadcast flow, KV
-persistence, corner selection and its fallbacks, reruns, and static asset
-serving. Not verified: in-browser playback and voice assignment, which need a
+without a cookie, wrong passwords rejected), the full broadcast flow, Durable
+Object persistence across requests, corner selection and its fallbacks, reruns,
+and static asset serving. Not verified: in-browser playback and voice assignment, which need a
 real browser.
 
 Not built yet: audio TTS, automatic YouTube fetching (paste is the intended

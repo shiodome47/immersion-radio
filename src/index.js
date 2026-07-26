@@ -1,4 +1,4 @@
-import { createStore, recentWords } from "./store.js";
+import { Station, getStation, recentWords } from "./station.js";
 import { nextSlot, CLOCK } from "./clock.js";
 import { writeSegment } from "./generate.js";
 import { isAuthed, checkPassword, issueCookie, clearCookie, configured } from "./auth.js";
@@ -45,14 +45,10 @@ async function handleApi(request, env, url) {
     return json({ error: "Locked." }, { status: 401 });
   }
 
-  const store = createStore(env);
+  const station = getStation(env);
 
   if (path === "/api/station" && method === "GET") {
-    const [level, sources, segments] = await Promise.all([
-      store.getLevel(),
-      store.listSources(),
-      store.listSegments(),
-    ]);
+    const { level, sources, segments } = await station.snapshot();
     return json({
       level,
       sources,
@@ -68,11 +64,11 @@ async function handleApi(request, env, url) {
     if (!LEVELS.includes(level)) {
       return json({ error: `level must be one of ${LEVELS.join(" ")}` }, { status: 400 });
     }
-    return json({ level: await store.setLevel(level) });
+    return json({ level: await station.setLevel(level) });
   }
 
   if (path === "/api/sources" && method === "GET") {
-    return json(await store.listSources());
+    return json(await station.listSources());
   }
 
   if (path === "/api/sources" && method === "POST") {
@@ -83,29 +79,25 @@ async function handleApi(request, env, url) {
         { status: 400 }
       );
     }
-    return json(await store.addSource(body), { status: 201 });
+    return json(await station.addSource(body), { status: 201 });
   }
 
   const sourceMatch = path.match(/^\/api\/sources\/([\w-]+)$/);
   if (sourceMatch && method === "DELETE") {
-    if (!(await store.removeSource(sourceMatch[1]))) {
+    if (!(await station.removeSource(sourceMatch[1]))) {
       return json({ error: "not found" }, { status: 404 });
     }
     return new Response(null, { status: 204 });
   }
 
   if (path === "/api/segments" && method === "GET") {
-    return json(await store.listSegments());
+    return json(await station.listSegments());
   }
 
   // The heart of the station: hand back whatever airs next.
   if (path === "/api/next" && method === "POST") {
     const { position = 0, lastSourceId = null } = await request.json().catch(() => ({}));
-    const [level, sources, segments] = await Promise.all([
-      store.getLevel(),
-      store.listSources(),
-      store.listSegments(),
-    ]);
+    const { level, sources, segments } = await station.snapshot();
 
     const slot = nextSlot({
       position,
@@ -125,7 +117,7 @@ async function handleApi(request, env, url) {
     // Reruns cost nothing: no generation, and the listener meets the same
     // vocabulary again a few slots later.
     if (slot.corner === "rerun" && slot.rerunOf) {
-      await store.markSegmentPlayed(slot.rerunOf.id);
+      await station.markSegmentPlayed(slot.rerunOf.id);
       return json({ ...slot.rerunOf, corner: "rerun", label: slot.label, rerun: true });
     }
 
@@ -137,15 +129,17 @@ async function handleApi(request, env, url) {
       env,
     });
 
-    const saved = await store.addSegment(written);
-    await store.markSegmentPlayed(saved.id);
-    if (slot.source) await store.markSourceAired(slot.source.id);
+    const saved = await station.addSegment(written);
+    await station.markSegmentPlayed(saved.id);
+    if (slot.source) await station.markSourceAired(slot.source.id);
 
     return json({ ...saved, label: slot.label, rerun: false });
   }
 
   return json({ error: "not found" }, { status: 404 });
 }
+
+export { Station };
 
 export default {
   async fetch(request, env) {

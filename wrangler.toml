@@ -10,18 +10,18 @@ compatibility_date = "2026-07-01"
 directory = "./public"
 binding = "ASSETS"
 
-# The station's memory: sources, the segment library, and your level.
-#
-# ⚠️  DEPLOYS FAIL UNTIL THE id BELOW IS REAL. It cannot be filled in for you —
-# a KV namespace id belongs to your Cloudflare account. Run:
-#
-#     npx wrangler kv namespace create STATION
-#
-# and paste the id it prints over the placeholder, then commit and push.
-# `wrangler dev` simulates KV locally, so no preview_id is needed.
-[[kv_namespaces]]
-binding = "STATION"
-id = "PUT_YOUR_KV_NAMESPACE_ID_HERE"
+# The station's memory. A Durable Object needs no pre-provisioned resource id —
+# `wrangler deploy` creates it from the migration below on first use — so there
+# is nothing to set up by hand before deploying. It also serialises access,
+# which read-modify-write state like play counts genuinely needs.
+[[durable_objects.bindings]]
+name = "STATION"
+class_name = "Station"
+
+# SQLite-backed Durable Objects are available on the Workers free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Station"]
 
 [vars]
 IMMERSE_MODEL = "claude-sonnet-5"
