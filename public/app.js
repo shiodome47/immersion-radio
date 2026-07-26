@@ -317,6 +317,9 @@ async function openStation() {
   const station = await (await fetch("/api/station")).json();
   $("level").value = station.level;
   $("logoutBtn").hidden = !station.locked;
+  // Printed so "which build am I looking at" is answerable from the page
+  // itself, without a screenshot or a guess.
+  console.log(`[Immerse FM] build ${station.build}, locked=${station.locked}`);
   $("modeNote").textContent = station.hasKey
     ? `Scripts written by ${station.model} · spoken by your browser`
     : `No ANTHROPIC_API_KEY set — playing canned mock scripts.`;

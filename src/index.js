@@ -61,6 +61,7 @@ async function handleApi(request, env, url) {
     return json({
       level,
       locked,
+      build: env.BUILD_MARKER || "unknown",
       sources,
       clock: CLOCK,
       segmentCount: segments.length,
