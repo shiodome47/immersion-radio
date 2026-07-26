@@ -315,8 +315,12 @@ $("lockForm").addEventListener("submit", async (e) => {
   }
 
   if (!result.ok) {
+    // A forgotten first-run password has no reset flow, so say where the exit
+    // is rather than leaving someone stuck at their own front door.
     $("lockHint").textContent =
-      result.body.error || `Could not unlock (HTTP ${result.status}).`;
+      result.status === 401
+        ? "Wrong password. Forgotten it? Delete the Station Durable Object in the Cloudflare dashboard to start over."
+        : result.body.error || `Could not unlock (HTTP ${result.status}).`;
     return;
   }
 

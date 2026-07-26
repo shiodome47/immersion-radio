@@ -49,7 +49,17 @@ and setup closes permanently the moment it is used once. Until then the Worker
 serves nothing private: a station mid-setup fails closed, not open.
 
 `ACCESS_PASSWORD` still works as an override if you would rather set it as a
-secret; doing so disables first-run setup.
+secret; doing so disables first-run setup and wins over any password already
+claimed.
+
+**If you forget the password**, there is no reset flow — setup refuses to
+overwrite, which is what stops a stranger reclaiming a station they found. Two
+ways out, both requiring the dashboard access only the owner has:
+
+- Set `ACCESS_PASSWORD` as a secret. It overrides the stored one immediately.
+- Or delete the `Station` Durable Object (left menu → Durable Objects). That
+  wipes the password *and the library with it*, so prefer the first once you
+  have material worth keeping.
 
 It is single-tenant on purpose: one password, one library, no accounts. This is
 your station, not a service.
