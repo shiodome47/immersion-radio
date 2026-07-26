@@ -1,33 +1,30 @@
-// A single-tenant password gate.
+// An optional lock.
 //
-// This station holds whatever you send it — meeting recordings included — so a
-// public URL without a lock on it would publish your work to anyone who guesses
-// the hostname. It would also let strangers spend your Anthropic credits.
+// The station holds whatever you send it, and you are invited to send it
+// meeting recordings — so once there is anything in it worth reading, a public
+// URL is a real problem. But an empty station has nothing to protect, and a
+// lock that engages before there is anything behind it only locks out the
+// person who just deployed it. That is exactly what happened here.
 //
-// One shared password, an HMAC-signed cookie, no user accounts. That matches
-// what the product is: your station, not a service.
-//
-// Nothing here needs configuring before the station is usable. The first
-// visitor chooses the password and it is stored (hashed) in the Durable Object;
-// the cookie-signing key the station generates for itself. Requiring a dashboard
-// visit to set either one just meant a freshly deployed station could not be
-// opened by the person who deployed it.
-//
-// ACCESS_PASSWORD still works as an override: set it and it wins, and first-run
-// setup is closed off.
+// So: locked when ACCESS_PASSWORD is set, open when it is not. One secret, in
+// the dashboard, whenever you decide the library is worth locking. No first-run
+// claim, no stored hash, no reset token — that machinery existed to avoid
+// asking for one secret, and cost far more than it saved.
 
 const COOKIE = "immerse_session";
 const TTL_SECONDS = 60 * 60 * 24 * 30;
 
-// Normalises both sides of a comparison to a fixed length. Not a secret — it
-// never leaves this comparison.
+// Lax rather than Strict: Strict withholds the cookie on cross-site
+// navigations, so arriving by link — the Cloudflare dashboard's own Visit
+// button — would land you on the lock screen with a perfectly valid session.
+// Lax still withholds it from cross-site POSTs, and every route that changes
+// anything here is POST, PUT or DELETE.
+const COOKIE_ATTRS = "HttpOnly; Secure; SameSite=Lax; Path=/";
+
+// Normalises both sides of a comparison to a fixed length. Not a secret.
 const COMPARE_KEY = "immerse-fm/password-compare";
 
 const enc = new TextEncoder();
-
-function bytesToHex(buf) {
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 async function hmac(key, message) {
   const imported = await crypto.subtle.importKey(
@@ -37,7 +34,8 @@ async function hmac(key, message) {
     false,
     ["sign"]
   );
-  return bytesToHex(await crypto.subtle.sign("HMAC", imported, enc.encode(message)));
+  const sig = await crypto.subtle.sign("HMAC", imported, enc.encode(message));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // Comparison that doesn't leak how much of the value matched via timing.
@@ -48,13 +46,7 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-// Lax rather than Strict. Strict withholds the cookie on any cross-site
-// navigation, so arriving from a link — the Cloudflare dashboard's own "Visit"
-// button, a bookmark shared to yourself, a chat message — lands you on the lock
-// screen while the session is perfectly valid. Lax still withholds it from
-// cross-site POSTs, which is the CSRF vector that matters here: every route
-// that changes anything is POST, PUT or DELETE.
-const COOKIE_ATTRS = `HttpOnly; Secure; SameSite=Lax; Path=/`;
+export const isLocked = (env) => Boolean(env.ACCESS_PASSWORD);
 
 export async function issueCookie(secret) {
   const expires = Date.now() + TTL_SECONDS * 1000;
@@ -75,16 +67,8 @@ function readCookie(request) {
   return null;
 }
 
-// The station is locked once a password exists, whichever way it was set.
-export const hasPassword = (env, storedHash) => Boolean(env.ACCESS_PASSWORD || storedHash);
-
-// Never store the password itself — only something we can compare against.
-export const hashPassword = (secret, password) => hmac(secret, String(password));
-
-export async function isAuthed(request, { env, secret, storedHash }) {
-  // Fail closed. With no password at all the station is mid-setup, and an
-  // unsigned visitor must not be treated as the owner.
-  if (!hasPassword(env, storedHash) || !secret) return false;
+export async function isAuthed(request, env, secret) {
+  if (!isLocked(env)) return true; // Nothing to prove.
 
   const raw = readCookie(request);
   if (!raw) return false;
@@ -96,18 +80,14 @@ export async function isAuthed(request, { env, secret, storedHash }) {
   return safeEqual(sig, await hmac(secret, expires));
 }
 
-export async function verifyPassword({ env, secret, storedHash, submitted }) {
+export async function verifyPassword(env, submitted) {
+  if (!isLocked(env)) return false;
   const candidate = String(submitted ?? "");
   if (!candidate) return false;
 
-  if (env.ACCESS_PASSWORD) {
-    const [a, b] = await Promise.all([
-      hmac(COMPARE_KEY, candidate),
-      hmac(COMPARE_KEY, env.ACCESS_PASSWORD),
-    ]);
-    return safeEqual(a, b);
-  }
-
-  if (!storedHash) return false;
-  return safeEqual(await hashPassword(secret, candidate), storedHash);
+  const [a, b] = await Promise.all([
+    hmac(COMPARE_KEY, candidate),
+    hmac(COMPARE_KEY, env.ACCESS_PASSWORD),
+  ]);
+  return safeEqual(a, b);
 }

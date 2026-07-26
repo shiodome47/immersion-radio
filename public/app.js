@@ -287,45 +287,20 @@ async function loadSources() {
 
 /* --------------------------------------------------------------------- lock */
 
-let needsSetup = false;
-
-async function submitPassword(path, password) {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-  });
-  return { ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) };
-}
-
 $("lockForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const password = $("password").value;
-  $("lockHint").textContent = "";
-
-  let result = await submitPassword(needsSetup ? "/api/setup" : "/api/login", password);
-
-  // The page decided which of the two it was when it loaded. If the station was
-  // configured from the dashboard in the meantime, that decision is stale — so
-  // take the server's correction and retry rather than making someone reload to
-  // escape a dead end.
-  if (!result.ok && result.status === 409) {
-    needsSetup = !needsSetup;
-    result = await submitPassword(needsSetup ? "/api/setup" : "/api/login", password);
-  }
-
-  if (!result.ok) {
-    // A forgotten first-run password has no reset flow, so say where the exit
-    // is rather than leaving someone stuck at their own front door.
-    $("lockHint").textContent =
-      result.status === 401
-        ? "Wrong password. Forgotten it? Delete the Station Durable Object in the Cloudflare dashboard to start over."
-        : result.body.error || `Could not unlock (HTTP ${result.status}).`;
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: $("password").value }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    $("lockHint").textContent = body.error || `Could not unlock (HTTP ${res.status}).`;
     return;
   }
-
   $("password").value = "";
-  needsSetup = false;
+  $("lockHint").textContent = "";
   openStation();
 });
 
@@ -341,6 +316,7 @@ async function openStation() {
   $("shell").hidden = false;
   const station = await (await fetch("/api/station")).json();
   $("level").value = station.level;
+  $("logoutBtn").hidden = !station.locked;
   $("modeNote").textContent = station.hasKey
     ? `Scripts written by ${station.model} · spoken by your browser`
     : `No ANTHROPIC_API_KEY set — playing canned mock scripts.`;
@@ -349,18 +325,7 @@ async function openStation() {
 
 async function boot() {
   const session = await (await fetch("/api/session")).json();
-
-  if (session.authed) return openStation();
-
-  needsSetup = session.needsSetup;
-  if (needsSetup) {
-    // Freshly deployed: whoever opens it first names it. Nobody should have to
-    // go and configure a dashboard before they can use their own station.
-    $("lockBlurb").textContent = "Choose a password to lock this station.";
-    $("password").placeholder = "New password (6+ characters)";
-    $("password").autocomplete = "new-password";
-    $("lockSubmit").textContent = "Set password";
-  }
+  if (!session.locked || session.authed) return openStation();
   $("lock").hidden = false;
 }
 

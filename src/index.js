@@ -1,14 +1,7 @@
 import { Station, getStation, recentWords } from "./station.js";
 import { nextSlot, CLOCK } from "./clock.js";
 import { writeSegment } from "./generate.js";
-import {
-  isAuthed,
-  verifyPassword,
-  hashPassword,
-  hasPassword,
-  issueCookie,
-  clearCookie,
-} from "./auth.js";
+import { isAuthed, verifyPassword, isLocked, issueCookie, clearCookie } from "./auth.js";
 
 const json = (data, init = {}) =>
   new Response(JSON.stringify(data), {
@@ -25,61 +18,29 @@ async function handleApi(request, env, url) {
   // --- unauthenticated surface: just enough to render the lock screen ---
 
   const station = getStation(env);
-
-  // A forgotten password would otherwise need dashboard surgery. This lets the
-  // reset ride along with a deploy instead.
-  if (env.RESET_STATION) await station.consumeReset(env.RESET_STATION);
-
-  const [secret, storedHash] = await Promise.all([
-    station.getSessionSecret(),
-    station.getPasswordHash(),
-  ]);
-  const locked = hasPassword(env, storedHash);
-  const authed = await isAuthed(request, { env, secret, storedHash });
+  const secret = await station.getSessionSecret();
+  const locked = isLocked(env);
+  const authed = await isAuthed(request, env, secret);
 
   if (path === "/api/session" && method === "GET") {
-    return json({ needsSetup: !locked, authed });
+    return json({ locked, authed });
   }
 
-  // Deliberately unauthenticated, and deliberately boolean-only: enough to tell
-  // a deployed station apart from the one on your laptop without disclosing
-  // anything a stranger could use. Diagnosing production by screenshot is slow
-  // and mostly guesswork.
   if (path === "/api/diag" && method === "GET") {
     return json({
       build: env.BUILD_MARKER || "unknown",
-      hasStoredPassword: Boolean(storedHash),
-      hasAccessPasswordVar: Boolean(env.ACCESS_PASSWORD),
-      resetFlagPresent: Boolean(env.RESET_STATION),
-      resetAlreadyConsumed: await station.resetConsumed(),
-      cookiePresent: Boolean(request.headers.get("Cookie")),
+      locked,
       authed,
+      cookiePresent: Boolean(request.headers.get("Cookie")),
+      hasKey: Boolean(env.ANTHROPIC_API_KEY),
       https: url.protocol === "https:",
     });
   }
 
-  // First run: whoever opens the freshly deployed station chooses its password.
-  // Only reachable while no password exists, and claimPassword refuses to
-  // overwrite, so this closes permanently the moment it is used once.
-  if (path === "/api/setup" && method === "POST") {
-    if (locked) return json({ error: "Already set up." }, { status: 409 });
-
-    const { password } = await request.json().catch(() => ({}));
-    if (String(password ?? "").length < 6) {
-      return json({ error: "Use at least 6 characters." }, { status: 400 });
-    }
-    if (!(await station.claimPassword(await hashPassword(secret, password)))) {
-      return json({ error: "Already set up." }, { status: 409 });
-    }
-    return json({ ok: true }, { headers: { "Set-Cookie": await issueCookie(secret) } });
-  }
-
   if (path === "/api/login" && method === "POST") {
-    if (!locked) {
-      return json({ error: "No password set yet — choose one first." }, { status: 409 });
-    }
+    if (!locked) return json({ ok: true });
     const { password } = await request.json().catch(() => ({}));
-    if (!(await verifyPassword({ env, secret, storedHash, submitted: password }))) {
+    if (!(await verifyPassword(env, password))) {
       return json({ error: "Wrong password." }, { status: 401 });
     }
     return json({ ok: true }, { headers: { "Set-Cookie": await issueCookie(secret) } });
@@ -99,6 +60,7 @@ async function handleApi(request, env, url) {
     const { level, sources, segments } = await station.snapshot();
     return json({
       level,
+      locked,
       sources,
       clock: CLOCK,
       segmentCount: segments.length,
