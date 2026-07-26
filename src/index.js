@@ -164,6 +164,8 @@ export default {
       }
     }
 
+    // Assets are served before this Worker runs, so cache headers for them live
+    // in public/_headers, not here.
     return env.ASSETS.fetch(request);
   },
 };

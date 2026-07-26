@@ -1,0 +1,12 @@
+# Workers Assets serves static files before the Worker runs, so headers cannot
+# be set in code — this file is the only place they can be set.
+#
+# The HTML must never come from a cache. It is the file that decides which
+# versioned script runs, so a stale copy pins the whole app to an old build
+# while every later deploy lands correctly and invisibly. That is exactly what
+# happened here: the API reported the new build and the page kept running the
+# old one, which looks identical to the deploy not working at all.
+/
+  Cache-Control: no-store, must-revalidate
+/index.html
+  Cache-Control: no-store, must-revalidate
