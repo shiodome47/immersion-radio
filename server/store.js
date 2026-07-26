@@ -7,10 +7,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = resolve(__dirname, "../data/store.json");
 
 const DEFAULTS = {
-  // CEFR-ish proficiency the listener is currently at. The radio aims one
-  // notch above this ("i + 1").
+  // CEFR-ish level the listener is at now. The show aims one notch above ("i + 1").
   level: "B1",
-  sources: [], // { id, type, title, url, content, createdAt }
+  // Material the listener sent in. Diegetically these are "letters to the show".
+  sources: [], // { id, type, title, url, content, createdAt, airedCount }
+  // Every segment we've ever produced. Kept so the station can rerun them —
+  // heavy rotation is how real radio works, and repetition is how vocabulary sticks.
+  segments: [], // { id, corner, title, turns, newWords, sourceId, createdAt, playCount, lastPlayedAt }
 };
 
 let state = load();
@@ -36,18 +39,12 @@ function persist() {
   }
 }
 
-function id() {
+function newId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
 export const store = {
-  getState() {
-    return structuredClone(state);
-  },
-
-  getLevel() {
-    return state.level;
-  },
+  getLevel: () => state.level,
 
   setLevel(level) {
     state.level = level;
@@ -55,32 +52,80 @@ export const store = {
     return state.level;
   },
 
-  listSources() {
-    return structuredClone(state.sources);
-  },
+  listSources: () => structuredClone(state.sources),
 
-  getSource(sourceId) {
-    return state.sources.find((s) => s.id === sourceId) || null;
-  },
+  getSource: (id) => state.sources.find((s) => s.id === id) || null,
 
   addSource({ type, title, url, content }) {
     const source = {
-      id: id(),
+      id: newId(),
       type: type || "text",
       title: (title || "").trim() || "Untitled",
       url: (url || "").trim(),
       content: (content || "").trim(),
       createdAt: new Date().toISOString(),
+      airedCount: 0,
     };
     state.sources.unshift(source);
     persist();
     return source;
   },
 
-  removeSource(sourceId) {
+  removeSource(id) {
     const before = state.sources.length;
-    state.sources = state.sources.filter((s) => s.id !== sourceId);
+    state.sources = state.sources.filter((s) => s.id !== id);
     persist();
     return state.sources.length < before;
+  },
+
+  markSourceAired(id) {
+    const source = state.sources.find((s) => s.id === id);
+    if (source) {
+      source.airedCount += 1;
+      persist();
+    }
+  },
+
+  listSegments: () => structuredClone(state.segments),
+
+  getSegment: (id) => state.segments.find((s) => s.id === id) || null,
+
+  addSegment(segment) {
+    const saved = {
+      id: newId(),
+      createdAt: new Date().toISOString(),
+      playCount: 0,
+      lastPlayedAt: null,
+      ...segment,
+    };
+    state.segments.unshift(saved);
+    // Keep the library bounded so the JSON file doesn't grow forever.
+    if (state.segments.length > 300) state.segments.length = 300;
+    persist();
+    return saved;
+  },
+
+  markSegmentPlayed(id) {
+    const segment = state.segments.find((s) => s.id === id);
+    if (segment) {
+      segment.playCount += 1;
+      segment.lastPlayedAt = new Date().toISOString();
+      persist();
+    }
+  },
+
+  // Words the hosts have introduced recently — the quiz corner draws from these,
+  // and the script writer is told to recycle them.
+  recentWords(limit = 24) {
+    const words = [];
+    for (const segment of state.segments) {
+      for (const w of segment.newWords || []) {
+        if (!words.some((x) => x.word.toLowerCase() === w.word.toLowerCase())) {
+          words.push(w);
+        }
+        if (words.length >= limit) return words;
+      }
+    }
+    return words;
   },
 };

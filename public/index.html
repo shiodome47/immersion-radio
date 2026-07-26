@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Immerse FM</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="masthead">
+      <div class="dial">
+        <span class="onair" id="onair">OFF AIR</span>
+        <h1>Immerse&nbsp;FM</h1>
+      </div>
+      <p class="tagline">Your own immersion radio. Just leave it on.</p>
+    </header>
+
+    <main class="deck">
+      <!-- The radio -->
+      <section class="panel player">
+        <div class="nowplaying">
+          <span class="corner-tag" id="cornerTag">—</span>
+          <h2 id="segmentTitle">Nothing on air yet</h2>
+          <p class="sub" id="segmentSub">Send the show some material to start broadcasting.</p>
+        </div>
+
+        <div class="controls">
+          <button id="playBtn" class="big">▶&nbsp; Tune in</button>
+          <button id="skipBtn" class="ghost" disabled>Skip ⏭</button>
+          <label class="toggle">
+            <input type="checkbox" id="showScript" checked />
+            <span>Show transcript</span>
+          </label>
+        </div>
+
+        <div class="hosts">
+          <span class="host host-a"><i></i>Maya</span>
+          <span class="host host-b"><i></i>Theo</span>
+        </div>
+
+        <div class="script" id="script" aria-live="polite"></div>
+
+        <div class="words" id="words"></div>
+      </section>
+
+      <!-- The library -->
+      <aside class="panel library">
+        <h3>Send the show something</h3>
+        <form id="sourceForm">
+          <div class="row">
+            <select id="type">
+              <option value="youtube">YouTube</option>
+              <option value="meeting">Meeting transcript</option>
+              <option value="podcast">Podcast transcript</option>
+              <option value="article">Article</option>
+              <option value="text">Text</option>
+            </select>
+            <input id="title" type="text" placeholder="Title" required />
+          </div>
+          <input id="url" type="url" placeholder="Link (optional)" />
+          <textarea id="content" rows="7"
+            placeholder="Paste the transcript or text here.&#10;&#10;For YouTube, transcribe with Notta (or any tool) and paste the result."></textarea>
+          <button type="submit">Send it in ✉</button>
+          <p class="hint" id="formHint"></p>
+        </form>
+
+        <div class="levelbox">
+          <label for="level">Your level — the show aims one notch above</label>
+          <select id="level">
+            <option value="A1">A1 · beginner</option>
+            <option value="A2">A2 · elementary</option>
+            <option value="B1">B1 · intermediate</option>
+            <option value="B2">B2 · upper-intermediate</option>
+            <option value="C1">C1 · advanced</option>
+          </select>
+        </div>
+
+        <h3>In rotation</h3>
+        <ul class="sources" id="sources"></ul>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span id="modeNote"></span>
+    </footer>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
