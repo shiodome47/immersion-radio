@@ -334,7 +334,7 @@ async function boot() {
     // Freshly deployed: whoever opens it first names it. Nobody should have to
     // go and configure a dashboard before they can use their own station.
     $("lockBlurb").textContent = "Choose a password to lock this station.";
-    $("password").placeholder = "New password";
+    $("password").placeholder = "New password (6+ characters)";
     $("password").autocomplete = "new-password";
     $("lockSubmit").textContent = "Set password";
   }
