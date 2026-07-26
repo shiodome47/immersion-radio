@@ -287,9 +287,11 @@ async function loadSources() {
 
 /* --------------------------------------------------------------------- lock */
 
+let needsSetup = false;
+
 $("lockForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const res = await fetch("/api/login", {
+  const res = await fetch(needsSetup ? "/api/setup" : "/api/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password: $("password").value }),
@@ -300,6 +302,7 @@ $("lockForm").addEventListener("submit", async (e) => {
   }
   $("password").value = "";
   $("lockHint").textContent = "";
+  needsSetup = false;
   openStation();
 });
 
@@ -324,18 +327,17 @@ async function openStation() {
 async function boot() {
   const session = await (await fetch("/api/session")).json();
 
-  if (!session.configured) {
-    // Refusing to open beats silently serving a public station: this app holds
-    // whatever you sent it, meeting transcripts included.
-    $("lock").hidden = false;
-    $("lockHint").textContent =
-      "Not configured. Set ACCESS_PASSWORD and SESSION_SECRET, then reload.";
-    $("password").disabled = true;
-    $("lockForm").querySelector("button").disabled = true;
-    return;
-  }
-
   if (session.authed) return openStation();
+
+  needsSetup = session.needsSetup;
+  if (needsSetup) {
+    // Freshly deployed: whoever opens it first names it. Nobody should have to
+    // go and configure a dashboard before they can use their own station.
+    $("lockBlurb").textContent = "Choose a password to lock this station.";
+    $("password").placeholder = "New password";
+    $("password").autocomplete = "new-password";
+    $("lockSubmit").textContent = "Set password";
+  }
   $("lock").hidden = false;
 }
 

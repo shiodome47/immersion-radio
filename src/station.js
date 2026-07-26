@@ -22,6 +22,32 @@ export class Station extends DurableObject {
     return (await this.ctx.storage.get(key)) ?? fallback;
   }
 
+  // The cookie-signing key. There is no reason to make a human invent this —
+  // the runtime generates a better one than a person would, and it only ever
+  // needs to be stable, not memorable. Generated once, then persisted.
+  async getSessionSecret() {
+    let secret = await this.ctx.storage.get("sessionSecret");
+    if (!secret) {
+      secret = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      await this.ctx.storage.put("sessionSecret", secret);
+    }
+    return secret;
+  }
+
+  getPasswordHash() {
+    return this.#read("passwordHash", null);
+  }
+
+  // Set once, at first run. Refuses to overwrite, so a stranger who finds the
+  // URL later cannot reset the owner's password by calling setup again.
+  async claimPassword(hash) {
+    if (await this.ctx.storage.get("passwordHash")) return false;
+    await this.ctx.storage.put("passwordHash", hash);
+    return true;
+  }
+
   async getLevel() {
     return this.#read("level", "B1");
   }

@@ -1,7 +1,14 @@
 import { Station, getStation, recentWords } from "./station.js";
 import { nextSlot, CLOCK } from "./clock.js";
 import { writeSegment } from "./generate.js";
-import { isAuthed, checkPassword, issueCookie, clearCookie, configured } from "./auth.js";
+import {
+  isAuthed,
+  verifyPassword,
+  hashPassword,
+  hasPassword,
+  issueCookie,
+  clearCookie,
+} from "./auth.js";
 
 const json = (data, init = {}) =>
   new Response(JSON.stringify(data), {
@@ -17,22 +24,43 @@ async function handleApi(request, env, url) {
 
   // --- unauthenticated surface: just enough to render the lock screen ---
 
+  const station = getStation(env);
+  const [secret, storedHash] = await Promise.all([
+    station.getSessionSecret(),
+    station.getPasswordHash(),
+  ]);
+  const locked = hasPassword(env, storedHash);
+  const authed = await isAuthed(request, { env, secret, storedHash });
+
   if (path === "/api/session" && method === "GET") {
-    return json({ configured: configured(env), authed: await isAuthed(request, env) });
+    return json({ needsSetup: !locked, authed });
+  }
+
+  // First run: whoever opens the freshly deployed station chooses its password.
+  // Only reachable while no password exists, and claimPassword refuses to
+  // overwrite, so this closes permanently the moment it is used once.
+  if (path === "/api/setup" && method === "POST") {
+    if (locked) return json({ error: "Already set up." }, { status: 409 });
+
+    const { password } = await request.json().catch(() => ({}));
+    if (String(password ?? "").length < 6) {
+      return json({ error: "Use at least 6 characters." }, { status: 400 });
+    }
+    if (!(await station.claimPassword(await hashPassword(secret, password)))) {
+      return json({ error: "Already set up." }, { status: 409 });
+    }
+    return json({ ok: true }, { headers: { "Set-Cookie": await issueCookie(secret) } });
   }
 
   if (path === "/api/login" && method === "POST") {
-    if (!configured(env)) {
-      return json(
-        { error: "The station is not configured yet. Set ACCESS_PASSWORD and SESSION_SECRET." },
-        { status: 503 }
-      );
+    if (!locked) {
+      return json({ error: "No password set yet — choose one first." }, { status: 409 });
     }
     const { password } = await request.json().catch(() => ({}));
-    if (!(await checkPassword(env, password))) {
+    if (!(await verifyPassword({ env, secret, storedHash, submitted: password }))) {
       return json({ error: "Wrong password." }, { status: 401 });
     }
-    return json({ ok: true }, { headers: { "Set-Cookie": await issueCookie(env) } });
+    return json({ ok: true }, { headers: { "Set-Cookie": await issueCookie(secret) } });
   }
 
   if (path === "/api/logout" && method === "POST") {
@@ -41,11 +69,9 @@ async function handleApi(request, env, url) {
 
   // --- everything past here is private ---
 
-  if (!(await isAuthed(request, env))) {
+  if (!authed) {
     return json({ error: "Locked." }, { status: 401 });
   }
-
-  const station = getStation(env);
 
   if (path === "/api/station" && method === "GET") {
     const { level, sources, segments } = await station.snapshot();

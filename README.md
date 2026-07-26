@@ -43,9 +43,13 @@ recordings, so a public URL with no lock on it would publish your work to
 anyone who guesses the hostname — and let strangers spend your Anthropic
 credits.
 
-So there is a password gate, and **the Worker refuses to serve anything private
-until it is configured**. A missing password fails closed rather than silently
-meaning "open to everyone".
+So there is a password gate — but nothing to configure before you can use it.
+**The first person to open a freshly deployed station chooses its password**,
+and setup closes permanently the moment it is used once. Until then the Worker
+serves nothing private: a station mid-setup fails closed, not open.
+
+`ACCESS_PASSWORD` still works as an override if you would rather set it as a
+secret; doing so disables first-run setup.
 
 It is single-tenant on purpose: one password, one library, no accounts. This is
 your station, not a service.
@@ -75,23 +79,17 @@ npm test    # the format clock's programming logic
 ## Deploy it
 
 Deployment runs through **Cloudflare's Git integration** (Workers & Pages → your
-project → Settings → Build), which runs `wrangler deploy` on every push. There
-is no resource to provision first: the station's storage is a Durable Object,
-created automatically from the migration in `wrangler.toml`.
+project → Settings → Build), which runs `wrangler deploy` on every push.
 
-The one thing left is the secrets, and they can be set entirely from the
-dashboard — **Settings → Variables and Secrets → Add**, type *Secret*:
+**There is nothing to configure.** The station's storage is a Durable Object,
+created automatically from the migration in `wrangler.toml`; the cookie-signing
+key it generates for itself; and the password you set the first time you open
+it. No namespace to provision, no secret to paste, no terminal.
 
-| Secret | Value |
-|---|---|
-| `ACCESS_PASSWORD` | whatever you want to unlock the station with |
-| `SESSION_SECRET` | any long random string (a password generator is fine) |
-| `ANTHROPIC_API_KEY` | your key, or skip it to run on mock scripts |
-
-Then redeploy. Nothing needs a terminal.
-
-If you do have one: `npx wrangler secret put ACCESS_PASSWORD` and
-`npm run deploy` do the same job.
+The one optional secret is `ANTHROPIC_API_KEY`, under Settings → Variables and
+Secrets. Without it the station plays canned mock scripts — the format works,
+but your own material is never used, because writing the show is what the key
+pays for. It is cheap: roughly $0.25 per hour of radio.
 
 `.github/workflows/ci.yml` runs the tests on every push. It does not deploy —
 that would double up with Cloudflare's integration.
@@ -170,10 +168,11 @@ silence. A real TTS backend should be passed them intact.
 
 ## Status
 
-MVP. Verified against a local Worker: the password gate (private routes 401
-without a cookie, wrong passwords rejected), the full broadcast flow, Durable
-Object persistence across requests, corner selection and its fallbacks, reruns,
-and static asset serving. Not verified: in-browser playback and voice assignment, which need a
+MVP. Verified against a local Worker with no configuration at all: first-run
+setup claims the station and closes behind itself (a second attempt gets 409),
+private routes 401 without a cookie, wrong passwords are rejected, plus the full
+broadcast flow, Durable Object persistence across requests, corner selection and
+its fallbacks, reruns, and static asset serving. Not verified: in-browser playback and voice assignment, which need a
 real browser.
 
 Not built yet: audio TTS, automatic YouTube fetching (paste is the intended
